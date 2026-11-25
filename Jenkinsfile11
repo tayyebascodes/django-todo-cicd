@@ -2,40 +2,57 @@ pipeline {
   agent any
 
   stages {
-      stage('Build') {
+    stage('Build') {
       agent {
         docker { image 'django:latest' }
       }
       steps {
-            // Run the Django server in the foreground
-            sh 'python3 manage.py check' 
-            echo 'Django server started. Proceeding to next stage...'
+        sh 'python3 manage.py check'
+        echo 'Django check passed. Proceeding to next stage...'
       }
     }
 
     stage('Deploy') {
+      // Task 4: run only on the develop branch
+      when {
+        expression { env.GIT_BRANCH == 'origin/develop' }
+      }
       steps {
-        // Build the image
+        // Build the image (Task 1 test: break this line on purpose)
         sh 'docker build -t todo .'
-        
-        // Run the container with a specific name (e.g., 'todo_container')
-        sh 'docker run -d -p 8000:8000 --name todo_container todo'
+
+        // Task 2: two containers from the same image
+        sh 'docker run -d -p 8000:8000 --name todo_container1 todo'
+        sh 'docker run -d -p 8001:8000 --name todo_container2 todo'
+
+        // Verify both are running
+        sh 'docker ps --filter "name=todo_container"'
       }
       post {
         always {
           echo 'Waiting for 2 minutes before stopping and deleting containers...'
-          // Sleep for 2 minutes before stopping and deleting containers
           sleep 120
 
-          // Stop the container using its name
-          echo 'Stopping container...'
-          sh 'docker stop todo_container'
+          echo 'Stopping containers...'
+          sh 'docker stop todo_container1 todo_container2 || true'
 
-          // Remove the container
-          echo 'Removing container...'
-          sh 'docker rm todo_container'
+          echo 'Removing containers...'
+          sh 'docker rm todo_container1 todo_container2 || true'
         }
       }
+    }
+  }
+
+  // Task 1: pipeline-level post actions
+  post {
+    success {
+      echo 'Pipeline executed successfully'
+    }
+    failure {
+      echo 'Pipeline execution failed'
+    }
+    always {
+      echo 'Pipeline execution completed'
     }
   }
 }
